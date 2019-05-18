@@ -46,12 +46,20 @@ class DummyDrone:
 
 class OVS:
 
-	def __init__(self):
+	def __init__(self, vehicle_type, name):
 
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 		self.telem_broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.telem_broadcast_sock.settimeout(0.2)
 		self.telem_broadcast_sock.bind(("", 55000))
+
+		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.gcs_listening_sock.bind((ip, GCS_INSTRUCTIONS_PORT))
+		
+		self.vehicle_type = vehicle_type
+		self.name = name
+		self.update_rate = 5
 
 	def connect_to_vehicle(self):
 
@@ -63,17 +71,44 @@ class OVS:
 
 	def broadcast_telem(self):
 		
+		while True:
 
-		self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
-		_msg = {
-				"lon" : self.lon,
-				"lat" : self.lat,
-				"alt" : self.alt
-				}
-		self.telem_broadcast_sock.sendto(_msg, ('<broadcast>', LISTENING_TELEM_PORT))
+			tic = time.time()
+			self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
+			_msg = {
+					"name" : self.name,
+					"vehicle_type" : self.vehicle_type
+					"lon" : self.lon,
+					"lat" : self.lat,
+					"alt" : self.alt
+					}
+			self.telem_broadcast_sock.sendto(_msg, ('<broadcast>', LISTENING_TELEM_PORT))
+			toc = time.time() - tic
+			try:
+                time.sleep((1 / self.update_rate)  - toc)
+            except:
+                pass
 
 	def recieve_gcs_message(self):
-		#recieve stuff
+		while True:
+			try:
+				_data = self.gcs_listening_sock.recv(1024)
+				data = json.loads(_dat.decode("utf-8"))
+
+				if data["update_rate"]:			
+					self.update_rate = data["update_rate"]
+				if data["capture_network_performance"]:
+					self.measure_network_performance()
+			except Exception as e:
+				print(e)
+				pass
+
+	def measure_network_performance(self):
+		pass
+
+
+
+
 
 
 

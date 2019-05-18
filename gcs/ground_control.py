@@ -2,13 +2,16 @@
 import socket
 import time
 
+
+
 def main():
 
-	client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-	client.bind(("", 55001))
+	gcs_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	gcs_client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+	gcs_client.bind(("", 55001))
+	
 	while True:
-		data, addr = client.recvfrom(1024)
+		data, addr = gcs_client.recvfrom(1024)
 		print(data.decode("utf-8"))
 
 if __name__ == '__main__':
