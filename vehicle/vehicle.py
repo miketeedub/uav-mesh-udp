@@ -10,49 +10,49 @@ import time
 from dronekit import Vehicle, connect
 import select
 import subprocess
-from vehicle.v2v import V2V
-from vehicle import led_display
 import _thread
 import threading
 import signal
 
-class UAV(Vehicle)
+class UAV(Vehicle):
+
 
 	def __init__(self, *args):
 
-        super(UAV, self).__init__(*args)
-        self.sendDict = {}
+		super(UAV, self).__init__(*args)
+		self.sendDict = {}
 
-    def toJSON(self):
-        #Why do I even have this??
-        return json.dumps(self.sendDict, default=lambda o: o.__dict__)
+	def toJSON(self):
+	#Why do I even have this??
+		return json.dumps(self.sendDict, default=lambda o: o.__dict__)
 
-    def updateUAVGPS(self):
-        #grabs the GPS stuff from the flight controller
-        self.global_loc = self.location.global_frame
-        return (self.global_loc.lon, self.global_loc.lat, self.global_loc.alt)
+	def updateUAVGPS(self):
+		#grabs the GPS stuff from the flight controller
+		self.global_loc = self.location.global_frame
+		return (self.global_loc.lon, self.global_loc.lat, self.global_loc.alt)
 
 class DummyDrone:
-    '''
-    just for testing purposes
-    '''
-    def __init__(self):
-        self.lon = 0
-        self.lat = 0
-        self.alt = 0
+	'''
+	just for testing purposes
+	'''
+	def __init__(self):
+		self.lon = 0
+		self.lat = 0
+		self.alt = 0
 
-    def updateUAVGPS(self):
-        return (self.lon, self.lat, self.alt)
+	def updateUAVGPS(self):
+		return (self.lon, self.lat, self.alt)
 
-class OVS:
+class OnboardVehicleSystem:
 
-	def __init__(self, vehicle_type, name):
+	def __init__(self, vehicle_type, name, ip):
 
+		#socket for broadcasting telemetry to gcs
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 		self.telem_broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.telem_broadcast_sock.settimeout(0.2)
 		self.telem_broadcast_sock.bind(("", 55000))
-
+		#socket for listening to gcs commands
 		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.gcs_listening_sock.bind((ip, GCS_INSTRUCTIONS_PORT))
@@ -62,7 +62,7 @@ class OVS:
 		self.update_rate = 5
 
 	def connect_to_vehicle(self):
-
+		
 		try:
 			self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600, vehicle_class=UAV)		
 		except:
@@ -77,17 +77,17 @@ class OVS:
 			self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
 			_msg = {
 					"name" : self.name,
-					"vehicle_type" : self.vehicle_type
+					"vehicle_type" : self.vehicle_type,
 					"lon" : self.lon,
 					"lat" : self.lat,
 					"alt" : self.alt
 					}
-			self.telem_broadcast_sock.sendto(_msg, ('<broadcast>', LISTENING_TELEM_PORT))
+			self.telem_broadcast_sock.sendto(json.dumps(_msg).encode("utf-8"), ('<broadcast>', TELEM_PORT))
 			toc = time.time() - tic
 			try:
-                time.sleep((1 / self.update_rate)  - toc)
-            except:
-                pass
+				time.sleep((1 / self.update_rate)  - toc)
+			except:
+				pass
 
 	def recieve_gcs_message(self):
 		while True:
@@ -113,8 +113,12 @@ class OVS:
 
 
 def main():
-	ovs = OVS()
-
+	ovs = OnboardVehicleSystem("MULTI_ROTOR","cinderella", "192.168.254.35")
+	ovs.connect_to_vehicle()
+	ovs.broadcast_telem()
+	ovs.gcs_listening_sock.close()
+	
 if __name__ == '__main__':
-	LISTENING_TELEM_PORT = 55001
+	TELEM_PORT = 55001
+	GCS_INSTRUCTIONS_PORT = 55002
 	main() 
