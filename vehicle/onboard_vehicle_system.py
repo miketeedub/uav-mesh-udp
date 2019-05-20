@@ -14,6 +14,11 @@ import _thread
 import threading
 import signal
 
+
+TELEM_PORT = 55001
+GCS_INSTRUCTIONS_PORT = 55002
+
+
 class UAV(Vehicle):
 
 
@@ -21,10 +26,6 @@ class UAV(Vehicle):
 
 		super(UAV, self).__init__(*args)
 		self.sendDict = {}
-
-	def toJSON(self):
-	#Why do I even have this??
-		return json.dumps(self.sendDict, default=lambda o: o.__dict__)
 
 	def updateUAVGPS(self):
 		#grabs the GPS stuff from the flight controller
@@ -45,21 +46,44 @@ class DummyDrone:
 
 class OnboardVehicleSystem:
 
-	def __init__(self, vehicle_type, name, ip):
+	def __init__(self, vehicle_type, name, network_type, display, kill):
 
 		#socket for broadcasting telemetry to gcs
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 		self.telem_broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.telem_broadcast_sock.settimeout(0.2)
 		self.telem_broadcast_sock.bind(("", 55000))
-		#socket for listening to gcs commands
-		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self.gcs_listening_sock.bind((ip, GCS_INSTRUCTIONS_PORT))
 		
 		self.vehicle_type = vehicle_type
 		self.name = name
 		self.update_rate = 5
+
+		self.network_type = network_type
+		self.kill = kill
+		self.identify_peripherals()
+
+	def identify_peripherals(self):
+
+		print("Connecting to Flight Controller")
+		subprocess.call(['../utils/./sysinfo.sh'])
+		self.peripherals = [line.rstrip('\n') for line in open('sysdisc.txt')]
+		self.ethernet_ip = self.peripherals[2]
+		self.batman_ip = self.peripherals[3]
+		self.wlan0 = self.peripherals[4]
+
+		if self.network_type == "batman":
+			self.ip = self.batman_ip
+		elif self.network_type =="silvus":
+			self.ip = self.ethernet_ip
+		elif self.network_type == "wifi":
+			self.ip = self.wlan0
+		elif self.network_type == "ethernet":
+			self.ip = self.ethernet_ip
+
+		#socket for listening to gcs commands
+		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
 	def connect_to_vehicle(self):
 		
@@ -71,7 +95,7 @@ class OnboardVehicleSystem:
 
 	def broadcast_telem(self):
 		
-		while True:
+		while not self.kill.kill:
 
 			tic = time.time()
 			self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
@@ -90,7 +114,7 @@ class OnboardVehicleSystem:
 				pass
 
 	def recieve_gcs_message(self):
-		while True:
+		while not self.kill.kill:
 			try:
 				_data = self.gcs_listening_sock.recv(1024)
 				data = json.loads(_dat.decode("utf-8"))
@@ -106,19 +130,3 @@ class OnboardVehicleSystem:
 	def measure_network_performance(self):
 		pass
 
-
-
-
-
-
-
-def main():
-	ovs = OnboardVehicleSystem("MULTI_ROTOR","cinderella", "192.168.254.35")
-	ovs.connect_to_vehicle()
-	ovs.broadcast_telem()
-	ovs.gcs_listening_sock.close()
-	
-if __name__ == '__main__':
-	TELEM_PORT = 55001
-	GCS_INSTRUCTIONS_PORT = 55002
-	main() 
