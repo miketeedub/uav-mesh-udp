@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import socket
-import time
-import json
-from onesky_api import OneSkyAPI
-import threading
 import sys, getopt
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+import socket
+import time
+import json
+from gcs.onesky_api import OneSkyAPI
+import threading
+
 class GroundControl:
 
 	def __init__(self, onesky_api):
