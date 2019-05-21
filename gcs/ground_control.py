@@ -41,8 +41,9 @@ class GroundControl:
 			try:
 				_data, addr = self.gcs_recv_telem_sock.recvfrom(1024)
 				data = json.loads((_data).decode("utf-8"))
-				
-				if data["name"] not in self.agents:
+				with self.agent_lock:
+					_temp_agent_dict = self.agents
+				if data["name"] not in _temp_agent_dict:
 						self.init_flight(data, addr)
 				with self.agent_lock:				
 					self.agents[data["name"]]["lon"] = data["lon"]
@@ -76,11 +77,10 @@ class GroundControl:
 		while True:
 			with self.agent_lock:
 				_temp_agent_dict = self.agents
-				_temp_agent_dict_2 = self.agents
-			for uav in _temp_agent_dict:	
+			v = [value for key, value in _temp_agent_dict.items()]	
 
-				self.onesky.updateTelemetry(_temp_agent_dict_2[uav]["gufi"], _temp_agent_dict_2[uav]["lon"], 
-											_temp_agent_dict_2[uav]["lat"], _temp_agent_dict_2[uav]["alt"])
+			for uav in v:
+				self.onesky.updateTelemetry(uav["gufi"], uav["lon"], uav["lat"], uav["alt"])
 
 	def user_input_loop(self):
 		while True:

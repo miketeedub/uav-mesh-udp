@@ -51,7 +51,7 @@ class OnboardVehicleSystem:
 		#socket for broadcasting telemetry to gcs
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 		self.telem_broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self.telem_broadcast_sock.settimeout(0.2)
+		self.telem_broadcast_sock.settimeout(0.4)
 		self.telem_broadcast_sock.bind(("", 55000))
 
 		#socket for listening to other vehicle telemetry
@@ -96,12 +96,14 @@ class OnboardVehicleSystem:
 		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
 	def connect_to_flight_controller(self):
-		
-		try:
-			self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600, vehicle_class=UAV)		
-		except:
-			self.uav = DummyDrone()	
+		self.uav = DummyDrone()	
 		self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
+		# try:
+		# 	print(">>> Connecting to flight controller.")
+		# 	self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600, vehicle_class=UAV)		
+		# except:
+		# 	self.uav = DummyDrone()	
+		# self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
 
 	def broadcast_telem(self):
 		
@@ -117,7 +119,10 @@ class OnboardVehicleSystem:
 					"lat" : self.lat,
 					"alt" : self.alt
 					}
-			self.telem_broadcast_sock.sendto(json.dumps(_msg).encode("utf-8"), ('<broadcast>', TELEM_PORT))
+			try:
+				self.telem_broadcast_sock.sendto(json.dumps(_msg).encode("utf-8"), ('<broadcast>', TELEM_PORT))
+			except:
+				pass
 			toc = time.time() - tic
 			try:
 				time.sleep((1 / self.update_rate)  - toc)
@@ -158,6 +163,7 @@ class OnboardVehicleSystem:
 					self.agents[data["name"]]["lon"] = data["lon"]
 					self.agents[data["name"]]["lat"] = data["lat"]
 					self.agents[data["name"]]["alt"] = data["alt"]
+					self.agents[data["name"]]["gufi"] = data["gufi"]
 													
 			except Exception as e:
 				print(e)
@@ -171,6 +177,7 @@ class OnboardVehicleSystem:
 												"lat" : new_flight["lat"],
 												"alt" : new_flight["alt"],
 												"vehicle_type" : new_flight["vehicle_type"],
+												"gufi" : new_flight["gufi"],
 												"ip" : addr[0],
 											}
 		print("\n>>> " + new_flight["name"] + " connected at " + addr[0] + "\n>>> ", end = '')
