@@ -53,13 +53,21 @@ class OnboardVehicleSystem:
 		self.telem_broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.telem_broadcast_sock.settimeout(0.2)
 		self.telem_broadcast_sock.bind(("", 55000))
+
+		#socket for listening to other vehicle telemetry
+		self.vehicle_to_vehicle_telem_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self.vehicle_to_vehicle_telem_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self.vehicle_to_vehicle_telem_sock.bind(("", TELEM_PORT))
 		
 		self.vehicle_type = vehicle_type
 		self.name = name
+		self.gufi = ""
 		self.update_rate = 5
 
 		self.network_type = network_type
 		self.kill = kill
+		self.agent_lock = threading.Lock()
+		self.agents = {}
 		self.identify_peripherals()
 
 	def identify_peripherals(self):
@@ -87,7 +95,7 @@ class OnboardVehicleSystem:
 		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
-	def connect_to_vehicle(self):
+	def connect_to_flight_controller(self):
 		
 		try:
 			self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600, vehicle_class=UAV)		
@@ -104,6 +112,7 @@ class OnboardVehicleSystem:
 			_msg = {
 					"name" : self.name,
 					"vehicle_type" : self.vehicle_type,
+					"gufi" : self.gufi,
 					"lon" : self.lon,
 					"lat" : self.lat,
 					"alt" : self.alt
@@ -116,20 +125,55 @@ class OnboardVehicleSystem:
 				pass
 
 	def recieve_gcs_message(self):
+		
 		while not self.kill.kill:
 			try:
 				_data = self.gcs_listening_sock.recv(1024)
 				data = json.loads(_data.decode("utf-8"))
-				_inst = data['change']
-				if _inst[0] == 'rate':
-					self.update_rate = _inst[1]
-					print("Adjusted update rate to {}.".format(_inst[1]))
-				elif _inst[0] == 'measure_conn':
+				_instructions = data['change']
+				if _instructions[0] == 'rate':
+					self.update_rate = _instructions[1]
+					print("Adjusted update rate to {}.".format(_instructions[1]))
+				elif _instructions[0] == 'gufi':
+					self.gufi = _instructions[1]
+					print(">>> GUFI set to " + self.gufi)
+				elif _instructions[0] == 'measure_conn':
 					print("Measuring network performance.")
 					self.measure_network_performance()
 			except Exception as e:
 				print(e)
 				pass
+
+	def vehicle_to_vehicle(self):
+
+		while not self.kill.kill:
+			
+			_data, addr = self.vehicle_to_vehicle_telem_sock.recvfrom(1024)
+			data = json.loads((_data).decode("utf-8"))
+			try:
+				if data["name"] != self.name:
+					if data["name"] not in self.agents:
+						self.init_flight(data, addr)
+					
+					self.agents[data["name"]]["lon"] = data["lon"]
+					self.agents[data["name"]]["lat"] = data["lat"]
+					self.agents[data["name"]]["alt"] = data["alt"]
+													
+			except Exception as e:
+				print(e)
+				pass
+
+	def init_flight(self, new_flight, addr):
+		#init that flight boi
+		
+		self.agents[new_flight["name"]] = {
+												"lon" : new_flight["lon"],
+												"lat" : new_flight["lat"],
+												"alt" : new_flight["alt"],
+												"vehicle_type" : new_flight["vehicle_type"],
+												"ip" : addr[0],
+											}
+		print("\n>>> " + new_flight["name"] + " connected at " + addr[0] + "\n>>> ", end = '')
 
 	def measure_network_performance(self):
 		pass

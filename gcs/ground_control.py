@@ -43,11 +43,11 @@ class GroundControl:
 				data = json.loads((_data).decode("utf-8"))
 				
 				if data["name"] not in self.agents:
-					self.init_flight(data, addr)
-				
-				self.agents[data["name"]]["lon"] = data["lon"]
-				self.agents[data["name"]]["lat"] = data["lat"]
-				self.agents[data["name"]]["alt"] = data["alt"]
+						self.init_flight(data, addr)
+				with self.agent_lock:				
+					self.agents[data["name"]]["lon"] = data["lon"]
+					self.agents[data["name"]]["lat"] = data["lat"]
+					self.agents[data["name"]]["alt"] = data["alt"]
 												
 			except Exception as e:
 				print(e)
@@ -59,28 +59,34 @@ class GroundControl:
 		#init that flight boi
 		gufi = self.onesky.createPointFlight(new_flight["name"], new_flight["lon"], new_flight["lat"], new_flight["alt"])
 		
-		self.agents[new_flight["name"]] = {
-												"lon" : new_flight["lon"],
-												"lat" : new_flight["lat"],
-												"alt" : new_flight["alt"],
-												"vehicle_type" : new_flight["vehicle_type"],
-												"ip" : addr[0],
-												"gufi" : gufi
-											}
+		with self.agent_lock:
+			self.agents[new_flight["name"]] = {
+													"lon" : new_flight["lon"],
+													"lat" : new_flight["lat"],
+													"alt" : new_flight["alt"],
+													"vehicle_type" : new_flight["vehicle_type"],
+													"ip" : addr[0],
+													"gufi" : gufi
+												}
+		self.send_instructions(new_flight["name"], 'gufi', gufi)
+		print("\n>>> " + new_flight["name"] + " connected at " + addr[0] + "\n>>> ", end = '')
 
 	def update_telemetry(self):
 
 		while True:
-			_temp = self.agents
-			for uav in _temp:	
+			with self.agent_lock:
+				_temp_agent_dict = self.agents
+				_temp_agent_dict_2 = self.agents
+			for uav in _temp_agent_dict:	
 
-				self.onesky.updateTelemetry(self.agents[uav]["gufi"], self.agents[uav]["lon"], 
-											self.agents[uav]["lat"], self.agents[uav]["alt"])
+				self.onesky.updateTelemetry(_temp_agent_dict_2[uav]["gufi"], _temp_agent_dict_2[uav]["lon"], 
+											_temp_agent_dict_2[uav]["lat"], _temp_agent_dict_2[uav]["alt"])
 
 	def user_input_loop(self):
 		while True:
 			try:  
-				self.user_input = input()  
+				self.user_input = input(">>> ")  
+				time.sleep(.01)
 			except EOFError:
 				pass
 
@@ -89,27 +95,21 @@ class GroundControl:
 		while True:
 
 			if self.user_input:
+				with self.agent_lock:
+					_temp_agent_dict = self.agents
 				try:
-					_user_input = self.user_input
-
-					_user_input = self.user_input.split(".")
-
-					if _user_input[0] == 'quit':
-					
-						self.kill.kill = True
-					
+					_user_input = self.user_input.split(" ")
+					if _user_input[0] == 'quit':					
+						self.kill.kill = True					
 					if _user_input[0] == 'agents':
-						for uav in self.agents:
-							print("{} : {}".format(uav, self.agents[uav]["ip"]))
-					if _user_input[0] in self.agents:
+						for uav in _temp_agent_dict:
+							print(">>> {} : {}".format(uav, _temp_agent_dict[uav]["ip"]))
+					if _user_input[0] in _temp_agent_dict:
 						if _user_input[1] == 'ip':
-							print(self.agents[_user_input[0]]["ip"])
+							print(">>> " + _temp_agent_dict[_user_input[0]]["ip"])
 						if _user_input[1] == 'type':
-							print(self.agents[_user_input[0]]["vehicle_type"])						
-						
-
+							print(">>> " + _temp_agent_dict[_user_input[0]]["vehicle_type"])												
 					if _user_input[0] == 'set' and len(_user_input) == 4:
-
 									            # name          #parameter       #newvalue
 						self.send_instructions(_user_input[1], _user_input[2], _user_input[3])
 
@@ -121,11 +121,10 @@ class GroundControl:
 
 	def send_instructions(self, name, parameter, new_value):
 		
-		_ip = self.agents[name]["ip"]
+		with self.agent_lock:
+			_ip = self.agents[name]["ip"]
 		self.gcs_send_sock.sendto(json.dumps({"change": [parameter, new_value]}).encode("utf-8"),(_ip, GCS_INSTRUCTIONS_PORT))	
 	
-
-
 
 def main():
 

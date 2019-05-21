@@ -51,8 +51,9 @@ def main(argv):
 	kill = Killer()
 
 	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill)
-	ovs.connect_to_vehicle()
+	ovs.connect_to_flight_controller()
 	threading.Thread(target=ovs.broadcast_telem).start()
+	threading.Thread(target=ovs.vehicle_to_vehicle).start()
 	ovs.recieve_gcs_message()
 	ovs.gcs_listening_sock.close()
 
