@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import sys, getopt
+import socket
 import os
 import signal
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from vehicle.onboard_vehicle_system import OnboardVehicleSystem
 from utils.system_killer import Killer
+import threading
 
 def main(argv):
 
@@ -43,13 +45,15 @@ def main(argv):
 		sys.exit(0)
 	if name == None:
 		print("Using hostname as UAV name!")
+		name = socket.gethostname()
 
 
 	kill = Killer()
 
 	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill)
 	ovs.connect_to_vehicle()
-	ovs.broadcast_telem()
+	threading.Thread(target=ovs.broadcast_telem).start()
+	ovs.recieve_gcs_message()
 	ovs.gcs_listening_sock.close()
 
 

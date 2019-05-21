@@ -8,26 +8,42 @@ import json
 from gcs.onesky_api import OneSkyAPI
 import threading
 
+
+TELEM_PORT = 55001
+GCS_INSTRUCTIONS_PORT = 55002
+
 class GroundControl:
 
-	def __init__(self, onesky_api):
+	def __init__(self, onesky_api, host_ip):
 		#client for listening to incoming broadcasts from UAVS
-		self.gcs_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.gcs_client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self.gcs_client.bind(("", TELEM_PORT))
+		self.gcs_recv_telem_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self.gcs_recv_telem_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self.gcs_recv_telem_sock.bind(("", TELEM_PORT))
 		#agents dictionary for keeping track of what UAVs are broadcasting
 		self.agents = {}
 		#onesky api obj
 		self.onesky = onesky_api
+		#create lock for agents dictionary
+		self.agent_lock = threading.Lock()
+		#ip address for sending commands to vehicles
+		self.gcs_send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+		self.user_input = None
+		
+	def run(self):
+		threading.Thread(target=self.listen).start()
+		threading.Thread(target=self.user_input_loop).start()
+		threading.Thread(target=self.user_interface).start()
+		threading.Thread(target=self.update_telemetry).start()	
 
 	def listen(self):
 
 		while True:
 			try:
-				_data, addr = self.gcs_client.recvfrom(1024)
+				_data, addr = self.gcs_recv_telem_sock.recvfrom(1024)
 				data = json.loads((_data).decode("utf-8"))
+				
 				if data["name"] not in self.agents:
-					self.init_flight(data)
+					self.init_flight(data, addr)
 				
 				self.agents[data["name"]]["lon"] = data["lon"]
 				self.agents[data["name"]]["lat"] = data["lat"]
@@ -37,33 +53,89 @@ class GroundControl:
 				print(e)
 				pass
 
-	def init_flight(self, new_flight):
+
+
+	def init_flight(self, new_flight, addr):
 		#init that flight boi
 		gufi = self.onesky.createPointFlight(new_flight["name"], new_flight["lon"], new_flight["lat"], new_flight["alt"])
+		
 		self.agents[new_flight["name"]] = {
 												"lon" : new_flight["lon"],
 												"lat" : new_flight["lat"],
 												"alt" : new_flight["alt"],
 												"vehicle_type" : new_flight["vehicle_type"],
+												"ip" : addr[0],
 												"gufi" : gufi
 											}
+
 	def update_telemetry(self):
 
 		while True:
-			for uav in self.agents:			
-				print(self.agents[uav])
+			_temp = self.agents
+			for uav in _temp:	
+
 				self.onesky.updateTelemetry(self.agents[uav]["gufi"], self.agents[uav]["lon"], 
 											self.agents[uav]["lat"], self.agents[uav]["alt"])
 
+	def user_input_loop(self):
+		while True:
+			try:  
+				self.user_input = input()  
+			except EOFError:
+				pass
+
+	def user_interface(self):
+		
+		while True:
+
+			if self.user_input:
+				try:
+					_user_input = self.user_input
+
+					_user_input = self.user_input.split(".")
+
+					if _user_input[0] == 'quit':
+					
+						self.kill.kill = True
+					
+					if _user_input[0] == 'agents':
+						for uav in self.agents:
+							print("{} : {}".format(uav, self.agents[uav]["ip"]))
+					if _user_input[0] in self.agents:
+						if _user_input[1] == 'ip':
+							print(self.agents[_user_input[0]]["ip"])
+						if _user_input[1] == 'type':
+							print(self.agents[_user_input[0]]["vehicle_type"])						
+						
+
+					if _user_input[0] == 'set' and len(_user_input) == 4:
+
+									            # name          #parameter       #newvalue
+						self.send_instructions(_user_input[1], _user_input[2], _user_input[3])
+
+				
+				except Exception as e:
+					print(e)
+
+				self.user_input = None
+
+	def send_instructions(self, name, parameter, new_value):
+		
+		_ip = self.agents[name]["ip"]
+		self.gcs_send_sock.sendto(json.dumps({"change": [parameter, new_value]}).encode("utf-8"),(_ip, GCS_INSTRUCTIONS_PORT))	
+	
+
+
+
 def main():
+
 	with open("mwalton.token", "r") as toke:
 		token = toke.read()
 	onesky_api = OneSkyAPI(token)
 	gcs = GroundControl(onesky_api)
 	threading.Thread(target=gcs.listen).start()
-	threading.Thread(target=gcs.update_telemetry).start()
+	gcs.update_telemetry()
 
 if __name__ == '__main__':
-	TELEM_PORT = 55001
-	GCS_INSTRUCTIONS_PORT = 55002
+	
 	main()

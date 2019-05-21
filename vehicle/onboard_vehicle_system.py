@@ -79,6 +79,8 @@ class OnboardVehicleSystem:
 			self.ip = self.wlan0
 		elif self.network_type == "ethernet":
 			self.ip = self.ethernet_ip
+		print(self.ip, self.network_type)
+
 
 		#socket for listening to gcs commands
 		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -117,11 +119,13 @@ class OnboardVehicleSystem:
 		while not self.kill.kill:
 			try:
 				_data = self.gcs_listening_sock.recv(1024)
-				data = json.loads(_dat.decode("utf-8"))
-
-				if data["update_rate"]:			
-					self.update_rate = data["update_rate"]
-				if data["capture_network_performance"]:
+				data = json.loads(_data.decode("utf-8"))
+				_inst = data['change']
+				if _inst[0] == 'rate':
+					self.update_rate = _inst[1]
+					print("Adjusted update rate to {}.".format(_inst[1]))
+				elif _inst[0] == 'measure_conn':
+					print("Measuring network performance.")
 					self.measure_network_performance()
 			except Exception as e:
 				print(e)
