@@ -62,7 +62,7 @@ class OnboardVehicleSystem:
 		self.vehicle_type = vehicle_type
 		self.name = name
 		self.gufi = ""
-		self.update_rate = 5
+		self.update_rate = 1
 
 		self.network_type = network_type
 		self.kill = kill
@@ -70,21 +70,6 @@ class OnboardVehicleSystem:
 		self.agents = {}
 		self.identify_peripherals()
 
-		if measuring:
-			threading.Thread(target=self.start_iperf3_server).start()
-
-	def start_iperf3_server(self):
-
-		print("Starting iperf server for throughput")
-		server = iperf3.Server()
-		server.bind_address = self.ip 
-		server.port = 6969
-		server.verbose = False
-		while True:
-			try:
-				server.run()
-			except:
-				self.start_iperf3_server()
 
 	def identify_peripherals(self):
 
@@ -158,12 +143,22 @@ class OnboardVehicleSystem:
 				elif _instructions[0] == 'gufi':
 					self.gufi = _instructions[1]
 					print(">>> GUFI set to " + self.gufi)
-				elif _instructions[0] == 'measure_conn':
+				elif _instructions[0] == 'measure_throughput':
 					print("Measuring network performance.")
-					self.measure_network_performance()
+					self.start_iperf3_server()
 			except Exception as e:
 				print(e)
 				pass
+
+	def start_iperf3_server(self):
+
+		print("Starting iperf server for throughput")
+		server = iperf3.Server()
+		server.bind_address = self.ip 
+		server.port = 6969
+		server.verbose = False
+		server.run()
+
 
 	def vehicle_to_vehicle(self):
 
@@ -184,6 +179,7 @@ class OnboardVehicleSystem:
 			except Exception as e:
 				print(e)
 				pass
+		self.vehicle_to_vehicle_telem_sock.close()
 
 	def init_flight(self, new_flight, addr):
 		#init that flight boi

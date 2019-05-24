@@ -41,8 +41,6 @@ def main(argv):
 			network_type = "wifi"
 		if opt == "-e":
 			network_type = "ethernet"
-		if opt == "-m":
-			measuring = True
 	if network_type == None:
 		print("Please enter -b, -w, -e, -s for network type")
 		sys.exit(0)

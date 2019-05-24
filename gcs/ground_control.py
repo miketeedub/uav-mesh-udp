@@ -9,6 +9,7 @@ from gcs.onesky_api import OneSkyAPI
 import threading
 import iperf3
 import requests
+import csv
 
 TELEM_PORT = 55001
 GCS_INSTRUCTIONS_PORT = 55002
@@ -32,16 +33,12 @@ class GroundControl:
 		self.gcs_send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)#, socket.IPPROTO_UDP)
 		self.user_input = None
 		self.ip = host_ip
+		self.network_performance_csv_list = []
 		#this is for measuring throughput with iperf3
 		self.silvus_ip = silvus_ip
 		if silvus_ip:
 			self.init_silvus_requests()
 		
-
-
-	
-
-
 				
 	def run(self):
 
@@ -112,18 +109,22 @@ class GroundControl:
 					_user_input = self.user_input.split(" ")
 					if _user_input[0] == 'quit':					
 						self.kill.kill = True					
-					if _user_input[0] == 'agents':
+					elif _user_input[0] == 'agents':
 						for uav in _temp_agent_dict:
 							print(">>> {} : {}".format(uav, _temp_agent_dict[uav]["ip"]))
-					if _user_input[0] == 'measure':
-						if _user_input[1] in _temp_agent_dict:			
-							self.measure_connection_performance(_user_input[1],_temp_agent_dict[_user_input[1]]["ip"])
-					if _user_input[0] in _temp_agent_dict:
+					elif _user_input[0] == 'measure':
+						if _user_input[1] in _temp_agent_dict:	
+							self.send_instructions(_user_input[1], "measure_throughput", "null")	
+							time.sleep(.02)
+							threading.Thread(target=self.measure_connection_performance, 
+								args=(_user_input[1],_temp_agent_dict[_user_input[1]]["ip"])).start()
+					elif _user_input[0] in _temp_agent_dict:
 						if _user_input[1] == 'ip':
 							print(">>> " + _temp_agent_dict[_user_input[0]]["ip"])
 						if _user_input[1] == 'type':
 							print(">>> " + _temp_agent_dict[_user_input[0]]["vehicle_type"])												
 					if _user_input[0] == 'set' and len(_user_input) == 4:
+						print("setting")
 									            # name          #parameter       #newvalue
 						self.send_instructions(_user_input[1], _user_input[2], _user_input[3])		
 				except Exception as e:
@@ -150,7 +151,7 @@ class GroundControl:
 	def init_iperf3_client(self, ip):
 
 		iperf_client = iperf3.Client()
-		iperf_client.duration = 1
+		iperf_client.duration = 2
 		iperf_client.server_hostname = ip
 		iperf_client.port = 6969
 		iperf_client.protocol = 'udp'
@@ -158,34 +159,38 @@ class GroundControl:
 		return iperf_client
 
 
-
-
 	def measure_connection_performance(self, name, ip):
 
 		#TODO: need to include the silvus id# in this later to target specific radios, since there's only one radio its not a problem
-		print(">>> Recording throughput and SNR from {} at {} \n>>> ".format(name,ip), end = '')	
+		print("Recording throughput and SNR from {} at {} \n>>> ".format(name,ip), end = '')	
+		snr = 0
+		throughput = 0
+		if name not in self.network_performance_csv_list:
+			self.network_performance_csv_list.append(name)
+			with open('network_logs_{}.csv'.format(name), mode='w') as csv_file:
+				csv_writer = csv.writer(csv_file, delimiter = ',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+				csv_writer.writerow(["lon", "lat","alt","snr","Mbps"])
 
-		while True:
-			#I can't figure out how to reuse the same client so we're just remaking it every time
-			client = self.init_iperf3_client(ip)
-			try:
-				response = self.silvus_session.post(self.streamscape_uri, data=self.silvus_snr_measurment_msg, stream=True)
-				data = json.loads(response.content.decode("utf-8"))
-				snr = int(data["result"][2])
-				print(snr)
-			except:
-				pass
-			try:				
-				result = client.run()
-				throughput = result.Mbps
-				print(throughput)
-			except Exception as e:
-				print("this is the exception:")
-				print(e)
+		client = self.init_iperf3_client(ip)
+		try:
+			response = self.silvus_session.post(self.streamscape_uri, data=self.silvus_snr_measurment_msg, stream=True)
+			data = json.loads(response.content.decode("utf-8"))
+			snr = int(data["result"][2])
+		except:
+			pass
+		try:				
+			result = client.run()
+			throughput = result.Mbps
+		except Exception as e:
+			print(e)
+			pass
+		with self.agent_lock:
+			_temp_agent_dict = self.agents.copy()
+		with open('network_logs_{}.csv'.format(name), mode='a') as csv_file:
+			csv_writer = csv.writer(csv_file, delimiter = ',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+			csv_writer.writerow([_temp_agent_dict[name]["lon"], _temp_agent_dict[name]["lat"], _temp_agent_dict[name]["alt"], snr, throughput])
+		print("Logged network performance from {} \n>>> ".format(name), end = '')
 
-			#it has to be removed from memory for some reason
-			client = None
-			time.sleep(2)
 
 
 
