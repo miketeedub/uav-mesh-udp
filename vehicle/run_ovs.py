@@ -15,13 +15,13 @@ def main(argv):
 	display = True
 	batman = False
 	try:
-		opts, args = getopt.getopt(argv, "ewsbhn:d", ["ethernet","wifi","silvus","batman","help","name=","disableDisplay"])
+		opts, args = getopt.getopt(argv, "ewsbhn:dm", ["ethernet","wifi","silvus","batman","help","name=","disableDisplay","measuring"])
 
 	except Exception as e:
 		print("-n <name> -d disables LED output")
 		print(e)
 		sys.exit(0)
-
+	measuring = False
 	name = None
 	network_type = None
 	for opt, arg in opts:
@@ -41,6 +41,8 @@ def main(argv):
 			network_type = "wifi"
 		if opt == "-e":
 			network_type = "ethernet"
+		if opt == "-m":
+			measuring = True
 	if network_type == None:
 		print("Please enter -b, -w, -e, -s for network type")
 		sys.exit(0)
@@ -51,7 +53,7 @@ def main(argv):
 
 	kill = Killer()
 
-	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill)
+	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill, measuring)
 	ovs.connect_to_flight_controller()
 	threading.Thread(target=ovs.broadcast_telem).start()
 	threading.Thread(target=ovs.vehicle_to_vehicle).start()

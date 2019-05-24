@@ -13,7 +13,7 @@ import subprocess
 import _thread
 import threading
 import signal
-
+import iperf3
 
 TELEM_PORT = 55001
 GCS_INSTRUCTIONS_PORT = 55002
@@ -46,7 +46,7 @@ class DummyDrone:
 
 class OnboardVehicleSystem:
 
-	def __init__(self, vehicle_type, name, network_type, display, kill):
+	def __init__(self, vehicle_type, name, network_type, display, kill, measuring):
 
 		#socket for broadcasting telemetry to gcs
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -70,6 +70,22 @@ class OnboardVehicleSystem:
 		self.agents = {}
 		self.identify_peripherals()
 
+		if measuring:
+			threading.Thread(target=self.start_iperf3_server).start()
+
+	def start_iperf3_server(self):
+
+		print("Starting iperf server for throughput")
+		server = iperf3.Server()
+		server.bind_address = self.ip 
+		server.port = 6969
+		server.verbose = False
+		while True:
+			try:
+				server.run()
+			except:
+				self.start_iperf3_server()
+
 	def identify_peripherals(self):
 
 		print("Connecting to Flight Controller")
@@ -91,8 +107,8 @@ class OnboardVehicleSystem:
 
 
 		#socket for listening to gcs commands
-		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)#, socket.IPPROTO_UDP)
+		# self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
 	def connect_to_flight_controller(self):
@@ -133,7 +149,7 @@ class OnboardVehicleSystem:
 		
 		while not self.kill.kill:
 			try:
-				_data = self.gcs_listening_sock.recv(1024)
+				_data = self.gcs_listening_sock.recv(10240*2)
 				data = json.loads(_data.decode("utf-8"))
 				_instructions = data['change']
 				if _instructions[0] == 'rate':

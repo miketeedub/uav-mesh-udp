@@ -1,5 +1,5 @@
 #!/bin/bash
-
+sudo rm "ip.txt"
 for conns in eth0 bat0 wlan0 wlp
 do
     address=$(ifconfig | grep -A1 $conns | grep inet | tr -d 'inet' | sed 's/.mask.*//' | tr -d  ' ')   
@@ -9,5 +9,3 @@ do
 	echo $address >> "ip.txt"
     fi
 done
-
-echo hostname >> "ip.txt"
