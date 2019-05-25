@@ -15,34 +15,22 @@ import threading
 import signal
 import iperf3
 
+import argparse
+
 TELEM_PORT = 55001
 GCS_INSTRUCTIONS_PORT = 55002
 
-
-class UAV(Vehicle):
-
-
-	def __init__(self, *args):
-
-		super(UAV, self).__init__(*args)
-		self.sendDict = {}
-
-	def updateUAVGPS(self):
-		#grabs the GPS stuff from the flight controller
-		self.global_loc = self.location.global_frame
-		return (self.global_loc.lon, self.global_loc.lat, self.global_loc.alt)
-
 class DummyDrone:
-	'''
-	just for testing purposes
-	'''
-	def __init__(self):
-		self.lon = 0
-		self.lat = 0
-		self.alt = 0
+    '''
+    just for testing purposes
+    '''
+    def __init__(self):
+        self.lon = 0
+        self.lat = 0
+        self.alt = 0
 
-	def updateUAVGPS(self):
-		return (self.lon, self.lat, self.alt)
+    def updateUAVGPS(self):
+        return (self.lon, self.lat, self.alt)
 
 class OnboardVehicleSystem:
 
@@ -97,21 +85,29 @@ class OnboardVehicleSystem:
 		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
 	def connect_to_flight_controller(self):
-		self.uav = DummyDrone()	
-		self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
-		# try:
-		# 	print(">>> Connecting to flight controller.")
-		# 	self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600, vehicle_class=UAV)		
-		# except:
-		# 	self.uav = DummyDrone()	
-		# self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
+		
+		try:
+			print(">>> Connecting to flight controller.")
+			self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600)		
+		except:
+			self.uav = "dummy"
+		self.lon, self.lat, self.alt = self.update_uav_gps()
+
+
+	def update_uav_gps(self):
+		#grabs the GPS stuff from the flight controller
+		if self.uav == "dummy":
+			return (0, 0, 0)
+		else:
+			global_loc = self.uav.location.global_frame
+		return (global_loc.lon, global_loc.lat, global_loc.alt)
 
 	def broadcast_telem(self):
 		
 		while not self.kill.kill:
 
 			tic = time.time()
-			self.lon, self.lat, self.alt = self.uav.updateUAVGPS()
+			self.lon, self.lat, self.alt = self.update_uav_gps()
 			_msg = {
 					"name" : self.name,
 					"vehicle_type" : self.vehicle_type,
