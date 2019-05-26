@@ -21,7 +21,6 @@ def main(argv):
 		print("-n <name> -d disables LED output")
 		print(e)
 		sys.exit(0)
-	measuring = False
 	name = None
 	network_type = None
 	for opt, arg in opts:
@@ -51,7 +50,7 @@ def main(argv):
 
 	kill = Killer()
 
-	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill, measuring)
+	ovs = OnboardVehicleSystem("MULTI_ROTOR", name, network_type, display, kill)
 	ovs.connect_to_flight_controller()
 	threading.Thread(target=ovs.broadcast_telem).start()
 	threading.Thread(target=ovs.vehicle_to_vehicle).start()

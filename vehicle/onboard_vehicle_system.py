@@ -34,7 +34,16 @@ class DummyDrone:
 
 class OnboardVehicleSystem:
 
-	def __init__(self, vehicle_type, name, network_type, display, kill, measuring):
+	'''
+	param vehicle_type: string for vehicle type e.g. MULTI_ROTOR
+	param network_type: string for type of network connetion e.g. silvus, batman, wifi..
+	param display: for future i2c display. not used now
+	param kill: for sigterm kill object. not used now
+	param measuring: not used.
+
+	'''
+
+	def __init__(self, vehicle_type, name, network_type, display, kill):
 
 		#socket for broadcasting telemetry to gcs
 		self.telem_broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -60,6 +69,7 @@ class OnboardVehicleSystem:
 
 
 	def identify_peripherals(self):
+		''' need to redo this since no longer using ACM'''
 
 		print("Connecting to Flight Controller")
 		subprocess.call(['../utils/./sysinfo.sh'])
@@ -80,14 +90,16 @@ class OnboardVehicleSystem:
 
 
 		#socket for listening to gcs commands
-		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)#, socket.IPPROTO_UDP)
-		# self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.gcs_listening_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+		self.gcs_listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.gcs_listening_sock.bind((self.ip, GCS_INSTRUCTIONS_PORT))
 
 	def connect_to_flight_controller(self):
+		'''method for connecting to flight controller. must be connecting to flight controller via UART to telemetry port'''
 		
 		try:
 			print(">>> Connecting to flight controller.")
+			#connected object from dronekit library stored in uav
 			self.uav = connect("/dev/ttyS0", wait_ready=True, baud=57600)		
 		except:
 			self.uav = "dummy"
@@ -95,7 +107,7 @@ class OnboardVehicleSystem:
 
 
 	def update_uav_gps(self):
-		#grabs the GPS stuff from the flight controller
+		'''method for grabbing gps from flight controller'''
 		if self.uav == "dummy":
 			return (0, 0, 0)
 		else:
@@ -103,11 +115,16 @@ class OnboardVehicleSystem:
 		return (global_loc.lon, global_loc.lat, global_loc.alt)
 
 	def broadcast_telem(self):
+		''' 
+		method for taking gps from flight controller, formatting data in JSON,
+		and sending a UDP broadcast to all TELEM_PORTs on network
+		'''
 		
 		while not self.kill.kill:
 
 			tic = time.time()
 			self.lon, self.lat, self.alt = self.update_uav_gps()
+			#msg format used for telemetry broadcasts
 			_msg = {
 					"name" : self.name,
 					"vehicle_type" : self.vehicle_type,
@@ -127,6 +144,7 @@ class OnboardVehicleSystem:
 				pass
 
 	def recieve_gcs_message(self):
+		'''method for recieving direct messages from gcs. gcs sends instructions.'''
 		
 		while not self.kill.kill:
 			try:
@@ -141,13 +159,14 @@ class OnboardVehicleSystem:
 					print(">>> GUFI set to " + self.gufi)
 				elif _instructions[0] == 'measure_throughput':
 					print("Measuring network performance.")
+					#gcs will create a iperf3 client and try to connect to uav to measure performance, we need to create a iperf3 server
 					self.start_iperf3_server()
 			except Exception as e:
 				print(e)
 				pass
 
 	def start_iperf3_server(self):
-
+		#creates an iperf3 server. only lasts for one measurement. putting in a while 1 causes udp problems
 		print("Starting iperf server for throughput")
 		server = iperf3.Server()
 		server.bind_address = self.ip 
@@ -157,7 +176,11 @@ class OnboardVehicleSystem:
 
 
 	def vehicle_to_vehicle(self):
-
+		'''
+		method for listening to other telemetry udp broadcasts
+		currently doesnt do anything other than store information in an agents dictonary, but 
+		additional logic can easily be added
+		'''
 		while not self.kill.kill:
 			
 			_data, addr = self.vehicle_to_vehicle_telem_sock.recvfrom(1024)
@@ -178,7 +201,7 @@ class OnboardVehicleSystem:
 		self.vehicle_to_vehicle_telem_sock.close()
 
 	def init_flight(self, new_flight, addr):
-		#init that flight boi
+		'''method for adding new flights to agents dict'''
 		
 		self.agents[new_flight["name"]] = {
 												"lon" : new_flight["lon"],

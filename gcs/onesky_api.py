@@ -5,15 +5,19 @@ from datetime import datetime, timezone
 import json
 
 class OneSkyAPI:
+'''
+class for interacting with OneSky USS API.
 
+param token: token string given for signing API commands
 
-    #TODO: fill with comments
+'''
     def __init__(self, token):
 
         self.token = token
         self.session = self.createSession()
 
     def createSession(self):
+        '''create requests session with the appropriate token and headers'''
 
         session = requests.Session()
         session.headers.update({'Authorization': 'Bearer {}'.format(self.token),
@@ -21,10 +25,21 @@ class OneSkyAPI:
         return session
 
     def currentTime(self):
+        '''just returns time in proper format'''
 
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def createPointFlight(self, name, lon, lat, alt):
+        '''
+        creates point flight with OneSky and returns a gufi
+
+        param name: name of uav
+        param lon: longitude
+        param lat: latitude
+        param alt: altitude
+
+        returns: global unique flight identifier 
+        '''
 
         url = 'https://utm.onesky.xyz/api/flights/point'
         data = '''{
@@ -49,6 +64,7 @@ class OneSkyAPI:
             return response.content.decode('utf-8').split('/')[-1]
 
     def createFlightPlanSimple(self, data):
+        '''creates simple flight plan. never been used'''
 
         url = "https://utm.onesky.xyz/api/flights/pathSimple"
         response = self.session.post(url, data=data)
@@ -58,6 +74,9 @@ class OneSkyAPI:
             return response.content.decode('utf-8').split('/')[-1]
 
     def updateTelemetry(self, GUFI, lon, lat, alt):
+        '''
+        method for updating live telemetry to onesky
+        '''
 
         url = 'https://utm.onesky.xyz/api/flights/log/telemetry/' + GUFI
         data = '''{
@@ -77,17 +96,23 @@ class OneSkyAPI:
 
 
     def listFlights(self):
+        '''lists all active flights'''
         url = 'https://utm.onesky.xyz/api/flights/'
         response = self.session.get(url, stream=True)
         return json.loads(response.content.decode('utf-8'))
 
     def deleteFlight(self, GUFI):
+        '''deletes flights'''
         url='https://utm.onesky.xyz/api/flights/' + GUFI
         response = self.session.delete(url,  stream=True)
         return response
 
 if __name__=="__main__":
 
+
+    '''
+    running this module directly will delete all flights associated with the token
+    '''
     with open("mwalton.token", "r") as toke:
         token = toke.read()
 

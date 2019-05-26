@@ -14,8 +14,13 @@ import subprocess
 
 
 def main(argv):
+
+	'''
+	param argv: user arguments
+	'''
 	with open("mwalton.token", "r") as toke:
 		token = toke.read()
+	#shell script for finding ips associated with all network adapters, saves to ip.txt
 	subprocess.call(['../utils/./find_ip.sh'])
 	ips = [line.rstrip('\n') for line in open('ip.txt')] 
 	ethernet_ip, batman_ip, wlan0 = ips[0], ips[1], ips[2]
@@ -45,7 +50,7 @@ def main(argv):
 		print("Please select ethernet, silvus, batman, or wifi with -e, -s, -b, -w")
 		sys.exit(0)
 
-
+	#create onesky api objecct
 	onesky = OneSkyAPI(token)
 	gcs = GroundControl(onesky, host, measuring, silvus_ip)
 	gcs.run()
