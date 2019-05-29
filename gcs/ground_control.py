@@ -23,7 +23,7 @@ class GroundControl:
 	param silvus_ip: ip address written on the back of the silvus radio. only needed if measuring snr
 	'''
 
-	def __init__(self, onesky_api, host_ip, measuring, silvus_ip):
+	def __init__(self, onesky_api, host_ip, measuring, silvus_ip, killer):
 		#client for listening to incoming broadcasts from UAVS
 		self.gcs_recv_telem_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self.gcs_recv_telem_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)

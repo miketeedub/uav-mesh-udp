@@ -143,6 +143,8 @@ class OnboardVehicleSystem:
 			except:
 				pass
 
+	self.telem_broadcast_sock.close()
+
 	def recieve_gcs_message(self):
 		'''method for recieving direct messages from gcs. gcs sends instructions.'''
 		
@@ -164,6 +166,7 @@ class OnboardVehicleSystem:
 			except Exception as e:
 				print(e)
 				pass
+		self.gcs_listening_sock.close()
 
 	def start_iperf3_server(self):
 		#creates an iperf3 server. only lasts for one measurement. putting in a while 1 causes udp problems
