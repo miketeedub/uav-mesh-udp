@@ -24,9 +24,8 @@ def main(argv):
 	subprocess.call(['../utils/./find_ip.sh'])
 	ips = [line.rstrip('\n') for line in open('ip.txt')] 
 	ethernet_ip, batman_ip, wlan0 = ips[0], ips[1], ips[2]
-	opts, args = getopt.getopt(argv, "ebwsmr:", ["ethernet", "batman", "wifi", "silvus", "measure", "radioIP"])
+	opts, args = getopt.getopt(argv, "ebwsr:", ["ethernet", "batman", "wifi", "silvus", "radioIP"])
 	host = ""
-	measuring = False
 	silvus_ip = None
 	silv = False
 	for opt, arg in opts:
@@ -43,16 +42,16 @@ def main(argv):
 			measuring = True
 		if opt == '-r':
 			silvus_ip = arg
-	if silv and measuring and not silvus_ip:
+	if silv and not silvus_ip:
 		print("Please include the IP address on the back of the radio when using silvus if measuring network performance")
 		sys.exit(0)
 	if host == "":
 		print("Please select ethernet, silvus, batman, or wifi with -e, -s, -b, -w")
 		sys.exit(0)
-
+	killer = Killer()
 	#create onesky api objecct
 	onesky = OneSkyAPI(token)
-	gcs = GroundControl(onesky, host, measuring, silvus_ip)
+	gcs = GroundControl(onesky, host, silvus_ip, killer)
 	gcs.run()
 
 if __name__ == '__main__':

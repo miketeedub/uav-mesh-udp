@@ -23,7 +23,8 @@ class GroundControl:
 	param silvus_ip: ip address written on the back of the silvus radio. only needed if measuring snr
 	'''
 
-	def __init__(self, onesky_api, host_ip, measuring, silvus_ip, killer):
+	def __init__(self, onesky_api, host_ip, silvus_ip, killer):
+		self.kill = killer
 		#client for listening to incoming broadcasts from UAVS
 		self.gcs_recv_telem_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self.gcs_recv_telem_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -56,7 +57,7 @@ class GroundControl:
 
 	def listen(self):
 		'''method for listening to telemetry broadcasts and updating telemetry to agents dictionary'''
-		while True:
+		while not self.kill.kill:
 			try:
 				_data, addr = self.gcs_recv_telem_sock.recvfrom(1024)
 				data = json.loads((_data).decode("utf-8"))
@@ -91,7 +92,7 @@ class GroundControl:
 
 	def update_telemetry(self):
 		'''appends telemetry to the /flight/appenedtelemetry extension.'''
-		while True:
+		while not self.kill.kill:
 			with self.agent_lock:
 				_temp_agent_dict = self.agents.copy()
 			v = [value for key, value in _temp_agent_dict.items()]	
@@ -101,7 +102,7 @@ class GroundControl:
 
 	def user_input_loop(self):
 		'''method for taking in user input. user input is stored in user_input'''
-		while True:
+		while not self.kill.kill:
 			try:  
 				self.user_input = input(">>> ")  
 				time.sleep(.01)
@@ -111,7 +112,7 @@ class GroundControl:
 	def user_interface(self):
 		'''user interface method for interacting with gcs and other vehicles'''
 		
-		while True:
+		while not self.kill.kill:
 			if self.user_input:
 				with self.agent_lock:
 					_temp_agent_dict = self.agents.copy()

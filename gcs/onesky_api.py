@@ -5,12 +5,12 @@ from datetime import datetime, timezone
 import json
 
 class OneSkyAPI:
-'''
-class for interacting with OneSky USS API.
+    '''
+    class for interacting with OneSky USS API.
 
-param token: token string given for signing API commands
+    param token: token string given for signing API commands
 
-'''
+    '''
     def __init__(self, token):
 
         self.token = token
@@ -21,7 +21,7 @@ param token: token string given for signing API commands
 
         session = requests.Session()
         session.headers.update({'Authorization': 'Bearer {}'.format(self.token),
-                                'Content-type': 'application/json'})
+                    'Content-type': 'application/json'})
         return session
 
     def currentTime(self):
@@ -43,18 +43,18 @@ param token: token string given for signing API commands
 
         url = 'https://utm.onesky.xyz/api/flights/point'
         data = '''{
-            "name": "''' + str(name) + '''",
-            "description": "This is a description.",
-            "aircraftType": "MULTI_ROTOR",
-            "altitudeReference": "WGS84",
-            "longitude": ''' + str(lon) + ''',
-            "latitude": ''' + str(lat) + ''',
-            "altitude": ''' + str(alt) + ''',
-            "radius": 500,
-            "maxHeight": 120,
-            "startTime": "''' + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") + '''",
-            "stopTime": "2019-12-03T10:16:40Z"
-                    }'''
+        "name": "''' + str(name) + '''",
+        "description": "This is a description.",
+        "aircraftType": "MULTI_ROTOR",
+        "altitudeReference": "WGS84",
+        "longitude": ''' + str(lon) + ''',
+        "latitude": ''' + str(lat) + ''',
+        "altitude": ''' + str(alt) + ''',
+        "radius": 500,
+        "maxHeight": 120,
+        "startTime": "''' + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") + '''",
+        "stopTime": "2019-12-03T10:16:40Z"
+        }'''
 
         response = self.session.post(url, data=data, stream=True)
         if response.status_code != 201:
@@ -80,16 +80,16 @@ param token: token string given for signing API commands
 
         url = 'https://utm.onesky.xyz/api/flights/log/telemetry/' + GUFI
         data = '''{
-          "eventType": "TELEMETRY",
-          "timestamp": "''' + self.currentTime()+'''",
-          "referenceLocation":
-          {
-             "longitude":''' + str(lon) + ''',
-             "latitude":''' + str(lat) + ''',
-             "altitude":'''+ str(alt) + '''
-          },
-          "altitudeReference": "AGL",
-          "data": "any extra data"
+        "eventType": "TELEMETRY",
+        "timestamp": "''' + self.currentTime()+'''",
+        "referenceLocation":
+        {
+        "longitude":''' + str(lon) + ''',
+        "latitude":''' + str(lat) + ''',
+        "altitude":'''+ str(alt) + '''
+        },
+        "altitudeReference": "AGL",
+        "data": "any extra data"
         }'''
 
         response = self.session.post(url, data=data, stream=True)
